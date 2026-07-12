@@ -18,10 +18,11 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
-  password      String?
-  role          String    @default("USER")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  password            String?
+  role                String    @default("USER")
+  onboardingCompleted Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   accounts Account[]
   sessions Session[]
@@ -71,14 +72,34 @@ model VerificationToken {
 model FitnessProfile {
   id            String   @id @default(cuid())
   userId        String   @unique
+  
+  // Step 1: Personal Info
   age           Int?
+  gender        String?  // SIMULATED ENUM
   heightCm      Float?
   weightKg      Float?
+
+  // Step 2: Fitness Profile
+  fitnessLevel  String?  // SIMULATED ENUM
+  activityLevel String?  // SIMULATED ENUM
+  fitnessGoal   String?  // SIMULATED ENUM
   goalWeight    Float?
-  fitnessGoal   String?
-  activityLevel String?
-  dietaryPref   String?
-  injuries      String?
+
+  // Step 3: Workout Preferences
+  workoutDaysPerWeek   Int?
+  workoutDuration      Int?
+  preferredWorkoutTime String?  // SIMULATED ENUM
+  equipment            String?  // JSON stringified array of strings
+
+  // Step 4: Nutrition
+  dietaryPref      String?  // SIMULATED ENUM
+  foodAllergies    String?
+  foodRestrictions String?
+
+  // Step 5: Health
+  injuries          String?
+  medicalConditions String?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

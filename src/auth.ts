@@ -41,22 +41,30 @@ export const authConfig: NextAuthConfig = {
           email: user.email,
           image: user.image,
           role: user.role,
+          onboardingCompleted: user.onboardingCompleted,
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id as string;
         token.role = (user as { role?: string }).role;
+        token.onboardingCompleted = (user as { onboardingCompleted?: boolean }).onboardingCompleted ?? false;
       }
+      
+      if (trigger === "update" && session?.onboardingCompleted === true) {
+        token.onboardingCompleted = true;
+      }
+      
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        session.user.onboardingCompleted = token.onboardingCompleted as boolean;
       }
       return session;
     },

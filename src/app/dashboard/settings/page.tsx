@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { auth } from "@/auth";
 import { User, Bell, Shield, Palette, ChevronRight } from "lucide-react";
 
@@ -8,7 +9,7 @@ const settingSections = [
   {
     id: "profile",
     title: "Profile",
-    description: "Update your name, email, and profile photo",
+    description: "Update your fitness goals and personal details",
     icon: User,
   },
   {
@@ -68,8 +69,9 @@ export default async function SettingsPage() {
       {/* Settings sections */}
       <div className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
         {settingSections.map(({ id, title, description, icon: Icon }) => (
-          <button
+          <Link
             key={id}
+            href={`/dashboard/settings/${id}`}
             className="flex w-full items-center gap-4 px-6 py-4 text-left hover:bg-muted/30 transition-colors group"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl gradient-bg shadow">
@@ -80,7 +82,7 @@ export default async function SettingsPage() {
               <p className="text-xs text-muted-foreground">{description}</p>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-          </button>
+          </Link>
         ))}
       </div>
 
