@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Check } from "lucide-react";
 import { onboardingSchema, type OnboardingInput } from "@/lib/validations/onboarding";
@@ -24,8 +24,7 @@ export function ProfileEditForm({ defaultValues }: { defaultValues: Partial<Onbo
   const [message, setMessage] = useState<{ type: "success" | "error", text: string } | null>(null);
 
   const { register, handleSubmit, formState: { errors }, control } = useForm<OnboardingInput>({
-    // @ts-ignore
-    resolver: zodResolver(onboardingSchema),
+    resolver: zodResolver(onboardingSchema) as Resolver<OnboardingInput>,
     defaultValues,
   });
 
@@ -40,7 +39,7 @@ export function ProfileEditForm({ defaultValues }: { defaultValues: Partial<Onbo
         setMessage({ type: "success", text: "Profile updated successfully!" });
         router.refresh();
       }
-    } catch (err) {
+    } catch {
       setMessage({ type: "error", text: "An unexpected error occurred." });
     } finally {
       setIsSubmitting(false);

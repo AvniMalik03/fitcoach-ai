@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldPath, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ChevronRight, ChevronLeft, Loader2, Dumbbell } from "lucide-react";
@@ -28,7 +28,7 @@ const equipmentOptions = [
   "Full Gym Access",
 ];
 
-export function OnboardingFlow({ defaultName, userEmail }: { defaultName: string; userEmail: string }) {
+export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail: string }) {
   const router = useRouter();
   const { update } = useSession();
   const [currentStep, setCurrentStep] = useState(0);
@@ -36,8 +36,7 @@ export function OnboardingFlow({ defaultName, userEmail }: { defaultName: string
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<OnboardingInput>({
-    // @ts-ignore
-    resolver: zodResolver(onboardingSchema),
+    resolver: zodResolver(onboardingSchema) as Resolver<OnboardingInput>,
     defaultValues: {
       name: defaultName,
       equipment: [],
@@ -51,11 +50,11 @@ export function OnboardingFlow({ defaultName, userEmail }: { defaultName: string
     mode: "onChange",
   });
 
-  const { register, handleSubmit, formState: { errors, isValid }, watch, trigger, control } = form;
+  const { register, handleSubmit, formState: { errors }, trigger, control } = form;
 
   const handleNext = async () => {
     const fieldsToValidate = getFieldsForStep(currentStep);
-    const isStepValid = await trigger(fieldsToValidate as any);
+    const isStepValid = await trigger(fieldsToValidate);
     
     if (isStepValid && currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
@@ -81,13 +80,13 @@ export function OnboardingFlow({ defaultName, userEmail }: { defaultName: string
       // Update NextAuth session so it knows onboarding is complete
       await update({ onboardingCompleted: true });
       router.push("/dashboard");
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.");
       setIsSubmitting(false);
     }
   };
 
-  const getFieldsForStep = (step: number) => {
+  const getFieldsForStep = (step: number): FieldPath<OnboardingInput>[] => {
     switch (step) {
       case 0: return ["name", "age", "gender", "heightCm", "weightKg"];
       case 1: return ["fitnessLevel", "activityLevel", "fitnessGoal", "goalWeight"];
@@ -313,7 +312,7 @@ export function OnboardingFlow({ defaultName, userEmail }: { defaultName: string
                   <div className="p-4 bg-primary/10 rounded-lg mt-6 flex items-start gap-3 border border-primary/20">
                     <Check className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">You're all set!</p>
+                      <p className="text-sm font-medium text-foreground">You&apos;re all set!</p>
                       <p className="text-xs text-muted-foreground mt-1">Our AI will use this information to generate a highly personalized plan designed specifically for your body and goals.</p>
                     </div>
                   </div>

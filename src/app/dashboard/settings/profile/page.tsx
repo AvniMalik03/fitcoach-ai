@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ProfileEditForm } from "@/components/dashboard/profile-edit-form";
+import type { OnboardingInput } from "@/lib/validations/onboarding";
 
 export default async function ProfileSettingsPage() {
   const session = await auth();
@@ -18,28 +19,28 @@ export default async function ProfileSettingsPage() {
   }
 
   // Parse equipment JSON back to array
-  let equipment = [];
+  let equipment: string[] = [];
   try {
     equipment = profile.equipment ? JSON.parse(profile.equipment) : [];
-  } catch (e) {
+  } catch {
     console.error("Failed to parse equipment JSON");
   }
 
-  const defaultValues = {
+  const defaultValues: Partial<OnboardingInput> = {
     name: session.user.name || "",
     age: profile.age || undefined,
-    gender: profile.gender || "",
+    gender: (profile.gender || "Prefer not to say") as OnboardingInput["gender"],
     heightCm: profile.heightCm || undefined,
     weightKg: profile.weightKg || undefined,
-    fitnessLevel: profile.fitnessLevel || "",
-    activityLevel: profile.activityLevel || "",
-    fitnessGoal: profile.fitnessGoal || "",
+    fitnessLevel: (profile.fitnessLevel || "Beginner") as OnboardingInput["fitnessLevel"],
+    activityLevel: (profile.activityLevel || "Sedentary") as OnboardingInput["activityLevel"],
+    fitnessGoal: (profile.fitnessGoal || "Weight Loss") as OnboardingInput["fitnessGoal"],
     goalWeight: profile.goalWeight || undefined,
     workoutDaysPerWeek: profile.workoutDaysPerWeek || undefined,
     workoutDuration: profile.workoutDuration || undefined,
-    preferredWorkoutTime: profile.preferredWorkoutTime || "",
+    preferredWorkoutTime: (profile.preferredWorkoutTime || "Morning") as OnboardingInput["preferredWorkoutTime"],
     equipment,
-    dietaryPref: profile.dietaryPref || "",
+    dietaryPref: (profile.dietaryPref || "None") as OnboardingInput["dietaryPref"],
     foodAllergies: profile.foodAllergies || "",
     foodRestrictions: profile.foodRestrictions || "",
     injuries: profile.injuries || "",

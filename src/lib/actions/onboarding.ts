@@ -77,7 +77,7 @@ export async function submitOnboarding(input: OnboardingInput) {
     });
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("========== ONBOARDING ERROR ==========");
     console.error(error);
     console.error("=====================================");
