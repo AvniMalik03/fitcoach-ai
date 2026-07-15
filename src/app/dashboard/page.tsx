@@ -30,6 +30,13 @@ function estimateCalories(difficulty: string, sets: number, reps: string) {
   return sets * difficultyBonus + (reps.includes("sec") ? 8 : 5);
 }
 
+type DashboardProgressItem = {
+  id: string;
+  day: string;
+  exerciseName: string;
+  completedAt: Date | null;
+};
+
 export default async function DashboardPage() {
   const session = await auth();
   const user = await prisma.user.findUnique({
@@ -45,7 +52,7 @@ export default async function DashboardPage() {
     : null;
 
   const parsedPlan = workoutPlan ? parseWorkoutPlan(workoutPlan.planJson) : null;
-  const completedProgress: any[] = [];
+  const completedProgress: DashboardProgressItem[] = [];
 
   const completedExerciseKeys = new Set<string>();
   const completedDays =

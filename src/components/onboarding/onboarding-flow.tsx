@@ -55,7 +55,7 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
   const handleNext = async () => {
     const fieldsToValidate = getFieldsForStep(currentStep);
     const isStepValid = await trigger(fieldsToValidate);
-    
+
     if (isStepValid && currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
     }
@@ -70,17 +70,32 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
   const onSubmit = async (data: OnboardingInput) => {
     setIsSubmitting(true);
     setError(null);
+
     try {
+      console.log("1. Saving onboarding...");
+
       const res = await submitOnboarding(data);
+
+      console.log("2. submitOnboarding finished", res);
+
       if (res.error) {
         setError(res.error);
         setIsSubmitting(false);
         return;
       }
-      // Update NextAuth session so it knows onboarding is complete
+
+      console.log("3. Updating session...");
+
       await update({ onboardingCompleted: true });
+
+      console.log("4. Session updated");
+
+      console.log("5. Redirecting...");
+
       router.push("/dashboard");
-    } catch {
+
+    } catch (err) {
+      console.error(err);
       setError("An unexpected error occurred.");
       setIsSubmitting(false);
     }
@@ -114,7 +129,7 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
           </span>
         </div>
         <div className="h-2 bg-secondary rounded-full overflow-hidden">
-          <motion.div 
+          <motion.div
             className="h-full bg-primary"
             initial={{ width: "0%" }}
             animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
@@ -254,7 +269,7 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
                                 value={eq}
                                 checked={field.value.includes(eq)}
                                 onChange={(e) => {
-                                  const updated = e.target.checked 
+                                  const updated = e.target.checked
                                     ? [...field.value, eq]
                                     : field.value.filter(v => v !== eq);
                                   field.onChange(updated);
@@ -308,7 +323,7 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
                     <label className="text-sm font-medium text-muted-foreground">Medical Conditions</label>
                     <textarea {...register("medicalConditions")} rows={3} className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" placeholder="E.g. Asthma, Hypertension..." />
                   </div>
-                  
+
                   <div className="p-4 bg-primary/10 rounded-lg mt-6 flex items-start gap-3 border border-primary/20">
                     <Check className="h-5 w-5 text-primary mt-0.5" />
                     <div>
@@ -334,7 +349,7 @@ export function OnboardingFlow({ defaultName }: { defaultName: string; userEmail
             <ChevronLeft className="mr-2 h-4 w-4" />
             Back
           </button>
-          
+
           {currentStep < steps.length - 1 ? (
             <button
               type="button"

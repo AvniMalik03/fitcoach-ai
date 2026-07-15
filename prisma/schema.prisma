@@ -31,6 +31,8 @@ model User {
   profile         FitnessProfile?
   workoutPlans    WorkoutPlan[]
   workoutProgress WorkoutProgress[]
+  nutritionPlans  NutritionPlan[]
+  nutritionLogs   NutritionLog[]
 }
 
 model Account {
@@ -144,6 +146,41 @@ model WorkoutProgress {
   @@unique([workoutPlanId, userId, day, exerciseName])
   @@index([userId])
   @@index([workoutPlanId])
+}
+
+model NutritionPlan {
+  id             String   @id @default(cuid())
+  userId         String
+  weekNumber     Int
+  title          String
+  targetCalories Int
+  proteinGoal    Int
+  carbsGoal      Int
+  fatGoal        Int
+  waterGoalMl    Int
+  planJson       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekNumber])
+  @@index([userId])
+}
+
+model NutritionLog {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime
+  waterIntakeMl Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
 }
 
 // ─── Enums (Simulated for SQLite) ──────────────────────────────────────────────────
