@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   Zap,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const navItems = [
   },
   { href: "/dashboard/workout", label: "Workouts", icon: Dumbbell },
   { href: "/dashboard/nutrition", label: "Nutrition", icon: Salad },
+  { href: "/dashboard/check-in", label: "Check-in", icon: ShieldCheck },
   { href: "/dashboard/progress", label: "Progress", icon: TrendingUp },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

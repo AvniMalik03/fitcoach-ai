@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getRecoveryAnalysis } from "@/lib/actions/checkin";
 import type { WeekOneWorkoutPlan } from "@/lib/workout/generator";
+import Link from "next/link";
 import {
   Activity,
   Flame,
@@ -10,6 +12,8 @@ import {
   Salad,
   Clock,
   Zap,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 
 function parseWorkoutPlan(planJson: string): WeekOneWorkoutPlan | null {
@@ -50,6 +54,8 @@ export default async function DashboardPage() {
       orderBy: [{ weekNumber: "desc" }, { createdAt: "desc" }],
     })
     : null;
+  const recoveryResult = user ? await getRecoveryAnalysis() : null;
+  const recovery = recoveryResult?.data ?? null;
 
   const parsedPlan = workoutPlan ? parseWorkoutPlan(workoutPlan.planJson) : null;
   const completedProgress: DashboardProgressItem[] = [];
@@ -195,6 +201,50 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-2xl border border-border bg-card p-6">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-bg shadow">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold">Today&apos;s AI Coach</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {recovery?.aiRecommendation ?? "Complete today's check-in to unlock adaptive coaching."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/check-in"
+            className="inline-flex items-center justify-center gap-2 rounded-xl gradient-bg px-4 py-2 text-sm font-medium text-white shadow-md transition-opacity hover:opacity-90"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Check in
+          </Link>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "Recovery Score", value: recovery ? `${recovery.recoveryScore}%` : "--" },
+            { label: "Fatigue Level", value: recovery?.fatigueLevel ?? "Pending" },
+            { label: "Readiness", value: recovery?.trainingReadiness ?? "Pending" },
+            { label: "Recovery Badge", value: recovery?.recoveryBadge ?? "Check-in" },
+          ].map((item) => (
+            <div key={item.label} className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-lg font-bold">{item.value}</p>
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-background/40 p-4">
+          <p className="text-xs font-medium text-muted-foreground">Adaptive Recommendation</p>
+          <p className="mt-1 text-sm font-semibold">
+            {recovery?.adaptiveWorkoutAdjustment ?? "No workout adjustment until today's check-in is complete."}
+          </p>
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6">

@@ -33,6 +33,7 @@ model User {
   workoutProgress WorkoutProgress[]
   nutritionPlans  NutritionPlan[]
   nutritionLogs   NutritionLog[]
+  dailyCheckIns   DailyCheckIn[]
 }
 
 model Account {
@@ -188,3 +189,25 @@ model NutritionLog {
 // SQLite doesn't support enums natively in Prisma, so we use String
 // USER
 // ADMIN
+
+model DailyCheckIn {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime
+  weight           Float?
+  sleepHours       Float
+  energyLevel      Int
+  soreness         Int
+  motivation       Int
+  mood             String?
+  workoutCompleted Boolean  @default(false)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
