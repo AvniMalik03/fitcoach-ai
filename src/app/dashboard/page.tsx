@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import type { WeekOneNutritionPlan } from "@/lib/nutrition/generator";
 import { prisma } from "@/lib/prisma";
 import { getRecoveryAnalysis } from "@/lib/actions/checkin";
 import {
@@ -36,7 +37,7 @@ export default async function DashboardPage() {
       orderBy: [{ weekNumber: "desc" }, { createdAt: "desc" }],
     })
     : null;
-  const [completedProgress, recoveryResult] = await Promise.all([
+  const [completedProgress, recoveryResult, nutritionPlan] = await Promise.all([
     workoutPlan && user
       ? prisma.workoutProgress.findMany({
         where: {
@@ -54,8 +55,19 @@ export default async function DashboardPage() {
       })
       : [],
     user ? getRecoveryAnalysis() : null,
+    user ? prisma.nutritionPlan.findFirst({
+      where: { userId: user.id },
+      orderBy: [{ weekNumber: "desc" }, { createdAt: "desc" }],
+    }) : null,
   ]);
   const recovery = recoveryResult?.data ?? null;
+
+  const parsedNutritionPlan = nutritionPlan ? (JSON.parse(nutritionPlan.planJson) as WeekOneNutritionPlan) : null;
+  const proteinTarget = parsedNutritionPlan?.proteinGoal ?? 1;
+  const proteinConsumed = parsedNutritionPlan 
+    ? parsedNutritionPlan.meals.reduce((total, meal) => total + meal.protein, 0)
+    : 0;
+  const proteinPct = percent(proteinConsumed, proteinTarget);
 
   const parsedPlan = workoutPlan ? parseWorkoutPlan(workoutPlan.planJson) : null;
   const completedDays = getCompletedWorkoutDays(parsedPlan, completedProgress);
@@ -74,6 +86,21 @@ export default async function DashboardPage() {
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  let aiCoachMessage = "Complete today's check-in to unlock adaptive coaching.";
+  if (workoutsCompleted >= workoutTarget && workoutTarget > 0) {
+    aiCoachMessage = "Excellent work! You've completed all planned workouts this week. Focus on hydration and recovery.";
+  } else if (recovery?.hasCheckIn) {
+    if (recovery.trainingReadiness === "Poor") {
+      aiCoachMessage = "Recovery looks low today. Consider a lighter workout or active recovery.";
+    } else if (recovery.trainingReadiness === "Excellent" || recovery.trainingReadiness === "Good") {
+      aiCoachMessage = "You're primed and ready! It's a great day to push your limits.";
+    } else {
+      aiCoachMessage = "Recovery looks moderate today. Listen to your body during your workout.";
+    }
+  } else if (currentStreak >= 3) {
+    aiCoachMessage = `You're on a ${currentStreak}-day streak! Keep the momentum going.`;
+  }
 
   const stats = [
     {
@@ -97,9 +124,9 @@ export default async function DashboardPage() {
     {
       id: "nutrition",
       label: "Protein goal",
-      value: "87%",
-      change: "-5%",
-      positive: false,
+      value: parsedNutritionPlan ? `${proteinConsumed}g / ${proteinTarget}g` : "Not Logged",
+      change: parsedNutritionPlan ? `${proteinPct}%` : "0%",
+      positive: proteinPct >= 80,
       icon: Salad,
       color: "from-emerald-500 to-teal-500",
     },
@@ -133,7 +160,7 @@ export default async function DashboardPage() {
       : [
         {
           id: "empty-workout",
-          title: parsedPlan ? "Workout plan ready" : "Generate your first workout",
+          title: "No workout completed yet",
           subtitle: parsedPlan
             ? "Start a session to see activity here"
             : "Create Week 1 from your profile",
@@ -192,7 +219,7 @@ export default async function DashboardPage() {
             <div>
               <h2 className="text-sm font-semibold">Today&apos;s AI Coach</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {recovery?.aiRecommendation ?? "Complete today's check-in to unlock adaptive coaching."}
+                {aiCoachMessage}
               </p>
             </div>
           </div>
@@ -207,10 +234,10 @@ export default async function DashboardPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Recovery Score", value: recovery ? `${recovery.recoveryScore}%` : "--" },
-            { label: "Fatigue Level", value: recovery?.fatigueLevel ?? "Pending" },
-            { label: "Readiness", value: recovery?.trainingReadiness ?? "Pending" },
-            { label: "Recovery Badge", value: recovery?.recoveryBadge ?? "Check-in" },
+            { label: "Recovery Score", value: recovery?.hasCheckIn ? `${recovery.recoveryScore}%` : "Pending" },
+            { label: "Fatigue Level", value: recovery?.hasCheckIn ? recovery.fatigueLevel : "Pending" },
+            { label: "Readiness", value: recovery?.hasCheckIn ? recovery.trainingReadiness : "Pending" },
+            { label: "Recovery Badge", value: recovery?.hasCheckIn ? recovery.recoveryBadge : "Check-in Required" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-lg font-bold">{item.value}</p>
@@ -222,7 +249,9 @@ export default async function DashboardPage() {
         <div className="mt-4 rounded-xl border border-border bg-background/40 p-4">
           <p className="text-xs font-medium text-muted-foreground">Adaptive Recommendation</p>
           <p className="mt-1 text-sm font-semibold">
-            {recovery?.adaptiveWorkoutAdjustment ?? "No workout adjustment until today's check-in is complete."}
+            {recovery?.hasCheckIn 
+              ? recovery.adaptiveWorkoutAdjustment 
+              : "Complete today's check-in to receive personalized recovery guidance."}
           </p>
         </div>
       </section>
@@ -262,17 +291,17 @@ export default async function DashboardPage() {
           </div>
           <div className="space-y-4">
             {[
-              { label: "Workouts", current: workoutsCompleted, target: workoutTarget, color: "from-violet-500 to-purple-600" },
-              { label: "Exercises", current: completedProgress.length, target: getTotalExerciseCount(parsedPlan) || 1, color: "from-blue-500 to-cyan-500" },
-              { label: "Calories", current: caloriesBurned, target: Math.max(workoutTarget * 180, 1), color: "from-orange-500 to-red-500" },
-              { label: "Protein (g)", current: 380, target: 490, color: "from-emerald-500 to-teal-500" },
-            ].map(({ label, current, target, color }) => {
+              { label: "Workouts", current: workoutsCompleted, target: workoutTarget, unit: "workouts", color: "from-violet-500 to-purple-600" },
+              { label: "Exercises", current: completedProgress.length, target: getTotalExerciseCount(parsedPlan) || 1, unit: "exercises", color: "from-blue-500 to-cyan-500" },
+              { label: "Calories", current: caloriesBurned, target: Math.max(workoutTarget * 180, 1), unit: "kcal", color: "from-orange-500 to-red-500" },
+              { label: "Protein", current: proteinConsumed, target: proteinTarget, unit: "g", color: "from-emerald-500 to-teal-500" },
+            ].map(({ label, current, target, unit, color }) => {
               const pct = Math.min(100, Math.round((current / target) * 100));
               return (
                 <div key={label}>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium">{pct}%</span>
+                    <span className="font-medium">{current} / {target} {unit}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                     <div
