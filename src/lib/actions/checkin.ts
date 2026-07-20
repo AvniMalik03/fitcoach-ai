@@ -3,6 +3,10 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { checkInSchema, type CheckInInput } from "@/lib/validations/checkin";
+import {
+  isWorkoutCompleteOnDate,
+  parseWorkoutPlan,
+} from "@/lib/workout/analytics";
 import type { DailyCheckIn } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
@@ -150,6 +154,10 @@ function buildRecommendations(checkIn: DailyCheckIn, recentCheckIns: DailyCheckI
   const recommendations: string[] = [];
   const skippedMultipleDays = missedWorkoutDays(recentCheckIns) >= 3;
 
+  if (checkIn.workoutCompleted) {
+    recommendations.push("Today's workout is complete. Prioritize recovery, hydration, and sleep now.");
+  }
+
   if (checkIn.sleepHours < 6 && checkIn.soreness > 7) {
     recommendations.push("Reduce today's workout volume by 20%.");
     recommendations.push("Add a longer stretching block after your warm-up.");
@@ -174,6 +182,10 @@ function buildRecommendations(checkIn: DailyCheckIn, recentCheckIns: DailyCheckI
 }
 
 function buildMessage(checkIn: DailyCheckIn, score: number, recommendations: string[]) {
+  if (checkIn.workoutCompleted) {
+    return "Today's workout is complete. Great job - shift the rest of the day toward recovery, hydration, and quality sleep.";
+  }
+
   if (score >= 85) {
     return "Your recovery looks excellent today. Consider increasing workout intensity slightly.";
   }
@@ -232,7 +244,11 @@ function buildAnalytics(checkIns: DailyCheckIn[]): RecoveryAnalysis["analytics"]
   };
 }
 
-function analyzeCheckIn(checkIn: DailyCheckIn | null, checkIns: DailyCheckIn[]): RecoveryAnalysis {
+function analyzeCheckIn(
+  checkIn: DailyCheckIn | null,
+  checkIns: DailyCheckIn[],
+  workoutCompletedToday: boolean
+): RecoveryAnalysis {
   if (!checkIn) {
     return {
       hasCheckIn: false,
@@ -240,16 +256,25 @@ function analyzeCheckIn(checkIn: DailyCheckIn | null, checkIns: DailyCheckIn[]):
       fatigueLevel: "Moderate",
       trainingReadiness: "Moderate",
       recoveryBadge: "Caution",
-      aiRecommendation: "Complete today's check-in to unlock adaptive coaching.",
-      recommendations: ["Log sleep, energy, soreness, and motivation to tailor today's plan."],
-      adaptiveWorkoutAdjustment: "No adjustment until today's check-in is complete.",
+      aiRecommendation: workoutCompletedToday
+        ? "Today's workout is complete. Log a check-in when you can so FitCoach AI can tune recovery guidance."
+        : "Complete today's check-in to unlock adaptive coaching.",
+      recommendations: workoutCompletedToday
+        ? ["Workout complete today. Prioritize recovery, hydration, and sleep."]
+        : ["Log sleep, energy, soreness, and motivation to tailor today's plan."],
+      adaptiveWorkoutAdjustment: workoutCompletedToday
+        ? "No added training today - your workout is already complete."
+        : "No adjustment until today's check-in is complete.",
       checkIn: null,
       analytics: buildAnalytics(checkIns),
     };
   }
 
-  const recoveryScore = calculateRecoveryScore(checkIn);
-  const recommendations = buildRecommendations(checkIn, checkIns);
+  const checkInWithWorkoutContext = workoutCompletedToday && !checkIn.workoutCompleted
+    ? { ...checkIn, workoutCompleted: true }
+    : checkIn;
+  const recoveryScore = calculateRecoveryScore(checkInWithWorkoutContext);
+  const recommendations = buildRecommendations(checkInWithWorkoutContext, checkIns);
 
   return {
     hasCheckIn: true,
@@ -257,10 +282,10 @@ function analyzeCheckIn(checkIn: DailyCheckIn | null, checkIns: DailyCheckIn[]):
     fatigueLevel: fatigueFromScore(recoveryScore),
     trainingReadiness: readinessFromScore(recoveryScore),
     recoveryBadge: badgeFromScore(recoveryScore),
-    aiRecommendation: buildMessage(checkIn, recoveryScore, recommendations),
+    aiRecommendation: buildMessage(checkInWithWorkoutContext, recoveryScore, recommendations),
     recommendations,
     adaptiveWorkoutAdjustment: recommendations[0] ?? "Keep today's workout unchanged.",
-    checkIn: serializeCheckIn(checkIn),
+    checkIn: serializeCheckIn(checkInWithWorkoutContext),
     analytics: buildAnalytics(checkIns),
   };
 }
@@ -333,6 +358,7 @@ export async function submitDailyCheckIn(
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/check-in");
+    revalidatePath("/dashboard/progress");
 
     return { success: true };
   } catch {
@@ -367,16 +393,46 @@ export async function getRecoveryAnalysis(): Promise<{ data?: RecoveryAnalysis; 
   try {
     const today = startOfDay(new Date());
     const recentStart = addDays(today, -13);
-    const checkIns = await prisma.dailyCheckIn.findMany({
-      where: {
-        userId,
-        date: { gte: recentStart },
-      },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    });
+    const [checkIns, workoutPlan] = await Promise.all([
+      prisma.dailyCheckIn.findMany({
+        where: {
+          userId,
+          date: { gte: recentStart },
+        },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      }),
+      prisma.workoutPlan.findFirst({
+        where: { userId },
+        orderBy: [{ weekNumber: "desc" }, { createdAt: "desc" }],
+      }),
+    ]);
     const todaysCheckIn = checkIns.find((item) => item.date.getTime() === today.getTime()) ?? null;
+    const parsedWorkout = workoutPlan ? parseWorkoutPlan(workoutPlan.planJson) : null;
+    const todaysProgress = workoutPlan
+      ? await prisma.workoutProgress.findMany({
+        where: {
+          userId,
+          workoutPlanId: workoutPlan.id,
+          completed: true,
+          completedAt: {
+            gte: today,
+            lt: addDays(today, 1),
+          },
+        },
+        select: {
+          day: true,
+          exerciseName: true,
+          completedAt: true,
+        },
+      })
+      : [];
+    const workoutCompletedToday = isWorkoutCompleteOnDate({
+      plan: parsedWorkout,
+      progress: todaysProgress,
+      date: today,
+    });
 
-    return { data: analyzeCheckIn(todaysCheckIn, checkIns) };
+    return { data: analyzeCheckIn(todaysCheckIn, checkIns, workoutCompletedToday) };
   } catch {
     return { error: "We could not generate recovery analysis right now." };
   }

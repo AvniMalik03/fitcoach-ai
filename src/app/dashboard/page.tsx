@@ -1,7 +1,14 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getRecoveryAnalysis } from "@/lib/actions/checkin";
-import type { WeekOneWorkoutPlan } from "@/lib/workout/generator";
+import {
+  getCompletedWorkoutDays,
+  getCurrentStreak,
+  getTotalExerciseCount,
+  getWorkoutCalories,
+  parseWorkoutPlan,
+  percent,
+} from "@/lib/workout/analytics";
 import Link from "next/link";
 import {
   Activity,
@@ -16,31 +23,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-function parseWorkoutPlan(planJson: string): WeekOneWorkoutPlan | null {
-  try {
-    const plan = JSON.parse(planJson) as WeekOneWorkoutPlan;
-    return Array.isArray(plan.days) ? plan : null;
-  } catch {
-    return null;
-  }
-}
-
-function progressKey(day: string, exerciseName: string) {
-  return `${day}::${exerciseName}`;
-}
-
-function estimateCalories(difficulty: string, sets: number, reps: string) {
-  const difficultyBonus = difficulty === "Hard" ? 8 : difficulty === "Moderate" ? 5 : 3;
-  return sets * difficultyBonus + (reps.includes("sec") ? 8 : 5);
-}
-
-type DashboardProgressItem = {
-  id: string;
-  day: string;
-  exerciseName: string;
-  completedAt: Date | null;
-};
-
 export default async function DashboardPage() {
   const session = await auth();
   const user = await prisma.user.findUnique({
@@ -54,35 +36,34 @@ export default async function DashboardPage() {
       orderBy: [{ weekNumber: "desc" }, { createdAt: "desc" }],
     })
     : null;
-  const recoveryResult = user ? await getRecoveryAnalysis() : null;
+  const [completedProgress, recoveryResult] = await Promise.all([
+    workoutPlan && user
+      ? prisma.workoutProgress.findMany({
+        where: {
+          workoutPlanId: workoutPlan.id,
+          userId: user.id,
+          completed: true,
+        },
+        select: {
+          id: true,
+          day: true,
+          exerciseName: true,
+          completedAt: true,
+        },
+        orderBy: { completedAt: "desc" },
+      })
+      : [],
+    user ? getRecoveryAnalysis() : null,
+  ]);
   const recovery = recoveryResult?.data ?? null;
 
   const parsedPlan = workoutPlan ? parseWorkoutPlan(workoutPlan.planJson) : null;
-  const completedProgress: DashboardProgressItem[] = [];
-
-  const completedExerciseKeys = new Set<string>();
-  const completedDays =
-    parsedPlan?.days.filter((day) =>
-      day.exercises.every((exercise) =>
-        completedExerciseKeys.has(progressKey(day.day, exercise.name))
-      )
-    ) ?? [];
+  const completedDays = getCompletedWorkoutDays(parsedPlan, completedProgress);
   const workoutTarget = parsedPlan?.workoutDaysPerWeek ?? 5;
   const workoutsCompleted = completedDays.length;
-  const caloriesBurned =
-    parsedPlan?.days.reduce((total, day) => {
-      return (
-        total +
-        day.exercises.reduce((dayTotal, exercise) => {
-          if (!completedExerciseKeys.has(progressKey(day.day, exercise.name))) return dayTotal;
-          return dayTotal + estimateCalories(day.difficulty, exercise.sets, exercise.reps);
-        }, 0)
-      );
-    }, 0) ?? 0;
-  const workoutProgressPercent = Math.min(
-    100,
-    Math.round((workoutsCompleted / Math.max(workoutTarget, 1)) * 100)
-  );
+  const caloriesBurned = getWorkoutCalories(parsedPlan, completedProgress);
+  const workoutProgressPercent = percent(workoutsCompleted, workoutTarget);
+  const currentStreak = getCurrentStreak(completedProgress);
   const latestCompleted = completedProgress
     .filter((item) => item.completedAt)
     .sort((a, b) => Number(b.completedAt) - Number(a.completedAt))
@@ -125,9 +106,9 @@ export default async function DashboardPage() {
     {
       id: "streak",
       label: "Day streak",
-      value: `${workoutsCompleted}`,
-      change: workoutsCompleted > 0 ? "+1" : "0",
-      positive: workoutsCompleted > 0,
+      value: `${currentStreak}`,
+      change: currentStreak > 0 ? "+1" : "0",
+      positive: currentStreak > 0,
       icon: Zap,
       color: "from-yellow-500 to-orange-500",
     },
@@ -282,7 +263,7 @@ export default async function DashboardPage() {
           <div className="space-y-4">
             {[
               { label: "Workouts", current: workoutsCompleted, target: workoutTarget, color: "from-violet-500 to-purple-600" },
-              { label: "Exercises", current: completedProgress.length, target: parsedPlan?.days.reduce((total, day) => total + day.exercises.length, 0) ?? 1, color: "from-blue-500 to-cyan-500" },
+              { label: "Exercises", current: completedProgress.length, target: getTotalExerciseCount(parsedPlan) || 1, color: "from-blue-500 to-cyan-500" },
               { label: "Calories", current: caloriesBurned, target: Math.max(workoutTarget * 180, 1), color: "from-orange-500 to-red-500" },
               { label: "Protein (g)", current: 380, target: 490, color: "from-emerald-500 to-teal-500" },
             ].map(({ label, current, target, color }) => {

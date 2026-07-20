@@ -74,6 +74,8 @@ async function listProgress(workoutPlanId: string, userId: string) {
 function revalidateWorkoutViews() {
   revalidatePath("/dashboard/workout");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/progress");
+  revalidatePath("/dashboard/check-in");
 }
 
 export async function getWorkoutProgress(

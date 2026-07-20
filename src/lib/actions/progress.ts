@@ -3,21 +3,26 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { WeekOneNutritionPlan } from "@/lib/nutrition/generator";
-import type { WeekOneWorkoutPlan, WorkoutDay, WorkoutExercise } from "@/lib/workout/generator";
+import {
+  addDays,
+  buildMonthlyWorkoutPoints,
+  buildWorkoutPoints,
+  dayNames,
+  getBestWorkoutWeek,
+  getCompletedWorkoutDays,
+  getCurrentStreak,
+  getTotalActiveDays,
+  parseWorkoutPlan,
+  percent,
+  startOfDay,
+  type WorkoutPoint,
+} from "@/lib/workout/analytics";
 
 type TrendPoint = {
   label: string;
   weight: number;
   bmi: number;
   bodyFat: number;
-};
-
-type WorkoutPoint = {
-  label: string;
-  workouts: number;
-  exercises: number;
-  minutes: number;
-  calories: number;
 };
 
 type NutritionPoint = {
@@ -81,23 +86,6 @@ export type ProgressAnalytics = {
   }[];
 };
 
-type CompletedProgress = {
-  day: string;
-  exerciseName: string;
-  completedAt: Date | null;
-};
-
-const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function parseWorkoutPlan(planJson: string): WeekOneWorkoutPlan | null {
-  try {
-    const plan = JSON.parse(planJson) as WeekOneWorkoutPlan;
-    return Array.isArray(plan.days) ? plan : null;
-  } catch {
-    return null;
-  }
-}
-
 function parseNutritionPlan(planJson: string): WeekOneNutritionPlan | null {
   try {
     const plan = JSON.parse(planJson) as WeekOneNutritionPlan;
@@ -107,26 +95,10 @@ function parseNutritionPlan(planJson: string): WeekOneNutritionPlan | null {
   }
 }
 
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + months);
   return next;
-}
-
-function percent(current: number, target: number) {
-  return Math.min(100, Math.round((current / Math.max(target, 1)) * 100));
 }
 
 function round(value: number, places = 1) {
@@ -136,15 +108,6 @@ function round(value: number, places = 1) {
 
 function formatShortDate(date: Date) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
-}
-
-function estimateCalories(difficulty: WorkoutDay["difficulty"], exercise: WorkoutExercise) {
-  const difficultyBonus = difficulty === "Hard" ? 8 : difficulty === "Moderate" ? 5 : 3;
-  return exercise.sets * difficultyBonus + (exercise.reps.includes("sec") ? 8 : 5);
-}
-
-function progressKey(day: string, exerciseName: string) {
-  return `${day}::${exerciseName}`;
 }
 
 function calculateBmi(weightKg: number | null | undefined, heightCm: number | null | undefined) {
@@ -207,125 +170,6 @@ function buildBodyTrend({
       bodyFat,
     };
   });
-}
-
-function countCompletedWorkoutDays(plan: WeekOneWorkoutPlan | null, progress: CompletedProgress[]) {
-  if (!plan) return 0;
-
-  const completed = new Set(progress.map((item) => progressKey(item.day, item.exerciseName)));
-  return plan.days.filter((day) =>
-    day.exercises.every((exercise) => completed.has(progressKey(day.day, exercise.name)))
-  ).length;
-}
-
-function buildWorkoutPoints(plan: WeekOneWorkoutPlan | null, progress: CompletedProgress[]) {
-  const today = startOfDay(new Date());
-  const dayBuckets = Array.from({ length: 7 }).map((_, index) => {
-    const date = addDays(today, index - 6);
-    return {
-      date,
-      label: dayNames[date.getDay()],
-      workouts: 0,
-      exercises: 0,
-      minutes: 0,
-      calories: 0,
-    };
-  });
-
-  if (!plan) {
-    return dayBuckets.map((bucket) => ({
-      label: bucket.label,
-      workouts: bucket.workouts,
-      exercises: bucket.exercises,
-      minutes: bucket.minutes,
-      calories: bucket.calories,
-    }));
-  }
-
-  const completedByDay = new Map<string, CompletedProgress[]>();
-  for (const item of progress) {
-    if (!item.completedAt) continue;
-    const dateKey = startOfDay(item.completedAt).toISOString();
-    completedByDay.set(dateKey, [...(completedByDay.get(dateKey) ?? []), item]);
-  }
-
-  return dayBuckets.map(({ date, ...point }) => {
-    const completed = completedByDay.get(date.toISOString()) ?? [];
-    const completedKeys = new Set(completed.map((item) => progressKey(item.day, item.exerciseName)));
-    const completedWorkoutDays = plan.days.filter((day) =>
-      day.exercises.every((exercise) => completedKeys.has(progressKey(day.day, exercise.name)))
-    );
-
-    const calories = plan.days.reduce((total, day) => {
-      return (
-        total +
-        day.exercises.reduce((dayTotal, exercise) => {
-          return completedKeys.has(progressKey(day.day, exercise.name))
-            ? dayTotal + estimateCalories(day.difficulty, exercise)
-            : dayTotal;
-        }, 0)
-      );
-    }, 0);
-
-    return {
-      ...point,
-      workouts: completedWorkoutDays.length,
-      exercises: completed.length,
-      minutes: completedWorkoutDays.length * plan.estimatedDuration,
-      calories,
-    };
-  });
-}
-
-function buildMonthlyWorkoutPoints(weekly: WorkoutPoint[], plan: WeekOneWorkoutPlan | null) {
-  const baseWorkouts = weekly.reduce((total, item) => total + item.workouts, 0);
-  const baseExercises = weekly.reduce((total, item) => total + item.exercises, 0);
-  const baseMinutes = weekly.reduce((total, item) => total + item.minutes, 0);
-  const baseCalories = weekly.reduce((total, item) => total + item.calories, 0);
-  const months = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-
-  return months.map((label, index) => {
-    const ramp = plan ? Math.max(0.25, (index + 1) / months.length) : 0;
-    return {
-      label,
-      workouts: Math.round(baseWorkouts * ramp),
-      exercises: Math.round(baseExercises * ramp),
-      minutes: Math.round(baseMinutes * ramp),
-      calories: Math.round(baseCalories * ramp),
-    };
-  });
-}
-
-function currentStreak(progress: CompletedProgress[]) {
-  const activeDays = new Set(
-    progress
-      .filter((item) => item.completedAt)
-      .map((item) => startOfDay(item.completedAt!).toISOString())
-  );
-
-  let streak = 0;
-  let cursor = startOfDay(new Date());
-
-  while (activeDays.has(cursor.toISOString())) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-
-  return streak;
-}
-
-function calculateBestWorkoutWeek(progress: CompletedProgress[]) {
-  const weeks = new Map<string, number>();
-
-  for (const item of progress) {
-    if (!item.completedAt) continue;
-    const date = startOfDay(item.completedAt);
-    const weekStart = addDays(date, -date.getDay());
-    const key = weekStart.toISOString();
-    weeks.set(key, (weeks.get(key) ?? 0) + 1);
-  }
-
-  return Math.max(0, ...weeks.values());
 }
 
 function buildNutritionWeeklyAverages(plan: WeekOneNutritionPlan | null, waterLogs: { date: Date; waterIntakeMl: number }[]) {
@@ -417,8 +261,8 @@ export async function getProgressAnalytics(): Promise<{ data?: ProgressAnalytics
     const weeklyProgress = completedProgress.filter((item) => item.completedAt! >= weekStart);
     const weeklyWorkoutPoints = buildWorkoutPoints(parsedWorkout, weeklyProgress);
     const monthlyWorkoutPoints = buildMonthlyWorkoutPoints(weeklyWorkoutPoints, parsedWorkout);
-    const workoutsCompleted = countCompletedWorkoutDays(parsedWorkout, weeklyProgress);
-    const totalWorkoutDays = countCompletedWorkoutDays(parsedWorkout, completedProgress);
+    const workoutsCompleted = getCompletedWorkoutDays(parsedWorkout, weeklyProgress).length;
+    const totalWorkoutDays = getCompletedWorkoutDays(parsedWorkout, completedProgress).length;
     const caloriesBurnedThisWeek = weeklyWorkoutPoints.reduce((total, item) => total + item.calories, 0);
     const totalCaloriesBurned = weeklyWorkoutPoints.reduce((total, item) => total + item.calories, 0);
     const workoutTarget = parsedWorkout?.workoutDaysPerWeek ?? profile?.workoutDaysPerWeek ?? 3;
@@ -451,8 +295,8 @@ export async function getProgressAnalytics(): Promise<{ data?: ProgressAnalytics
         id: "streak",
         title: "7 Day Streak",
         description: "Stay active for seven consecutive days.",
-        unlocked: currentStreak(completedProgress) >= 7,
-        progress: percent(currentStreak(completedProgress), 7),
+        unlocked: getCurrentStreak(completedProgress) >= 7,
+        progress: percent(getCurrentStreak(completedProgress), 7),
       },
       {
         id: "workouts-25",
@@ -508,10 +352,8 @@ export async function getProgressAnalytics(): Promise<{ data?: ProgressAnalytics
           bodyFat,
           weeklyWorkoutsCompleted: workoutsCompleted,
           caloriesBurnedThisWeek,
-          currentStreak: currentStreak(completedProgress),
-          totalDaysActive: new Set(
-            completedProgress.map((item) => startOfDay(item.completedAt!).toISOString())
-          ).size,
+          currentStreak: getCurrentStreak(completedProgress),
+          totalDaysActive: getTotalActiveDays(completedProgress),
         },
         bodyProgress: {
           weekly: buildBodyTrend({
@@ -558,8 +400,8 @@ export async function getProgressAnalytics(): Promise<{ data?: ProgressAnalytics
         personalRecords: [
           { label: "Longest workout", value: `${longestWorkout} min`, detail: "Longest planned session" },
           { label: "Most calories burned", value: `${Math.max(...weeklyWorkoutPoints.map((point) => point.calories), 0)} kcal`, detail: "Best day this week" },
-          { label: "Fastest streak", value: `${currentStreak(completedProgress)} days`, detail: "Current active run" },
-          { label: "Best workout week", value: `${calculateBestWorkoutWeek(completedProgress)} exercises`, detail: "Completed exercise peak" },
+          { label: "Fastest streak", value: `${getCurrentStreak(completedProgress)} days`, detail: "Current active run" },
+          { label: "Best workout week", value: `${getBestWorkoutWeek(completedProgress)} exercises`, detail: "Completed exercise peak" },
           { label: "Highest protein intake", value: `${highestProtein}g`, detail: "Daily plan total" },
           { label: "Highest water intake", value: `${highestWater}ml`, detail: "Best logged day" },
         ],
