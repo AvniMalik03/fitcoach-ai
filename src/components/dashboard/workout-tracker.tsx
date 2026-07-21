@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence, animate } from "framer-motion";
 import {
   Calendar,
   Check,
@@ -46,6 +47,27 @@ const motivationMessages = [
   "Focus on proper form rather than speed.",
   "Hydrate before your next session.",
 ];
+
+function AnimatedNumber({ value }: { value: number }) {
+  const nodeRef = useRef<HTMLSpanElement>(null);
+  
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (node) {
+      const currentVal = parseInt(node.textContent || "0");
+      const controls = animate(currentVal, value, {
+        duration: 0.5,
+        ease: "easeOut",
+        onUpdate(v) {
+          node.textContent = Math.round(v).toString();
+        },
+      });
+      return () => controls.stop();
+    }
+  }, [value]);
+
+  return <span ref={nodeRef}>{value}</span>;
+}
 
 function progressKey(day: string, exerciseName: string) {
   return `${day}::${exerciseName}`;
@@ -132,6 +154,11 @@ export function WorkoutTracker({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const router = useRouter();
+  const [showToast, setShowToast] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const prevCompleteRef = useRef<boolean>(false);
+
   const completedExerciseKeys = useMemo(
     () =>
       new Set(
@@ -205,6 +232,24 @@ export function WorkoutTracker({
   );
   const motivation =
     motivationMessages[(completedExerciseCount + activeDay.day.length) % motivationMessages.length];
+
+  useEffect(() => {
+    if (activeDayComplete && !prevCompleteRef.current) {
+      setShowToast(true);
+      setShowCelebration(true);
+      
+      const toastTimer = setTimeout(() => setShowToast(false), 5000);
+      const celebTimer = setTimeout(() => setShowCelebration(false), 4000);
+      
+      router.refresh();
+
+      return () => {
+        clearTimeout(toastTimer);
+        clearTimeout(celebTimer);
+      };
+    }
+    prevCompleteRef.current = activeDayComplete;
+  }, [activeDayComplete, router]);
 
   const handleToggle = (exercise: WorkoutExercise, completed: boolean) => {
     setError(null);
@@ -290,9 +335,10 @@ export function WorkoutTracker({
                   className="h-full rounded-full gradient-bg"
                   initial={{ width: 0 }}
                   animate={{ width: `${weeklyProgressPercent}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
                 />
               </div>
-              <p className="text-sm font-semibold">{weeklyProgressPercent}%</p>
+              <p className="text-sm font-semibold"><AnimatedNumber value={weeklyProgressPercent} />%</p>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               {completedDays.size} / {plan.days.length} Sessions Completed
@@ -301,15 +347,15 @@ export function WorkoutTracker({
 
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl border border-border bg-background/40 p-3">
-              <p className="text-lg font-bold">{completedExerciseCount}</p>
+              <p className="text-lg font-bold"><AnimatedNumber value={completedExerciseCount} /></p>
               <p className="text-xs text-muted-foreground">Exercises Completed</p>
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-3">
-              <p className="text-lg font-bold">{remainingExerciseCount}</p>
+              <p className="text-lg font-bold"><AnimatedNumber value={remainingExerciseCount} /></p>
               <p className="text-xs text-muted-foreground">Remaining Exercises</p>
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-3">
-              <p className="text-lg font-bold">{caloriesBurned}</p>
+              <p className="text-lg font-bold"><AnimatedNumber value={caloriesBurned} /></p>
               <p className="text-xs text-muted-foreground">Calories Burned Estimate</p>
             </div>
           </div>
@@ -423,11 +469,25 @@ export function WorkoutTracker({
               <motion.article
                 key={key}
                 layout
-                className="rounded-2xl border border-border bg-card p-5"
+                initial={{ opacity: 1 }}
+                animate={{ 
+                  opacity: completed ? 0.7 : 1, 
+                  scale: completed ? 0.98 : 1 
+                }}
+                transition={{ duration: 0.3 }}
+                className={cn(
+                  "rounded-2xl border border-border bg-card p-5 transition-colors",
+                  completed && "border-emerald-500/20 bg-emerald-500/5"
+                )}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="text-sm font-semibold">{exercise.name}</h3>
+                    <h3 className={cn(
+                      "text-sm font-semibold transition-all duration-300", 
+                      completed && "text-muted-foreground line-through"
+                    )}>
+                      {exercise.name}
+                    </h3>
                     <p className="mt-1 text-xs text-muted-foreground">{muscle}</p>
                   </div>
                   <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", difficultyColors[activeDay.difficulty])}>
@@ -479,7 +539,7 @@ export function WorkoutTracker({
                         type="button"
                         onClick={() => handleToggle(exercise, true)}
                         disabled={isPending}
-                        className="inline-flex items-center gap-2 rounded-xl gradient-bg px-4 py-2 text-sm font-medium text-white shadow-md disabled:opacity-60"
+                        className="inline-flex items-center gap-2 rounded-xl gradient-bg px-4 py-2 text-sm font-medium text-white shadow-md transition-transform active:scale-95 disabled:opacity-60"
                       >
                         <Check className="h-4 w-4" />
                         Complete Exercise
@@ -548,20 +608,66 @@ export function WorkoutTracker({
 
       {activeDayComplete && (
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6"
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+          className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-center"
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {showCelebration && (
+            <motion.div 
+               className="pointer-events-none absolute inset-0 flex items-center justify-center"
+               initial={{ opacity: 1 }}
+               animate={{ opacity: 0 }}
+               transition={{ duration: 2, delay: 1 }}
+            >
+               <motion.div 
+                 initial={{ scale: 0, opacity: 1 }}
+                 animate={{ scale: 2, opacity: 0 }}
+                 transition={{ duration: 1 }}
+                 className="h-full w-full bg-[radial-gradient(circle,rgba(16,185,129,0.2)_0%,transparent_70%)]"
+               />
+            </motion.div>
+          )}
+
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <motion.div 
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+            >
+              <Check className="h-8 w-8" />
+            </motion.div>
+            
             <div>
-              <h2 className="text-xl font-bold text-emerald-500">Workout Complete!</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Excellent work today! Estimated calories burned: {activeDayCalories}
+              <h2 className="flex items-center justify-center gap-2 text-2xl font-bold text-emerald-500">
+                ✓ Completed
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-muted-foreground">
+                Amazing effort! You&apos;ve crushed today&apos;s workout. Keep up the great consistency.
               </p>
             </div>
+            
+            <div className="mt-4 grid w-full max-w-lg grid-cols-2 gap-4 md:grid-cols-3">
+               <div className="rounded-xl border border-emerald-500/20 bg-background/50 p-4">
+                 <p className="mb-1 text-xs text-muted-foreground">Calories Burned</p>
+                 <p className="text-xl font-bold text-emerald-500"><AnimatedNumber value={activeDayCalories} /> kcal</p>
+               </div>
+               <div className="rounded-xl border border-emerald-500/20 bg-background/50 p-4">
+                 <p className="mb-1 text-xs text-muted-foreground">Duration</p>
+                 <p className="text-xl font-bold text-emerald-500">{activeDay.duration} min</p>
+               </div>
+               <div className="col-span-2 rounded-xl border border-emerald-500/20 bg-background/50 p-4 md:col-span-1">
+                 <p className="mb-1 text-xs text-muted-foreground">Completion Time</p>
+                 <p className="text-xl font-bold text-emerald-500">
+                   {new Intl.DateTimeFormat("en-US", { timeStyle: "short" }).format(new Date())}
+                 </p>
+               </div>
+            </div>
+
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 rounded-xl gradient-bg px-5 py-3 text-sm font-medium text-white shadow-lg transition-opacity hover:opacity-90"
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl gradient-bg px-8 py-3 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
             >
               Back to Dashboard
             </Link>
@@ -590,6 +696,24 @@ export function WorkoutTracker({
           </div>
         ))}
       </div>
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-4 right-4 z-50 flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-card p-4 shadow-xl md:bottom-8 md:right-8"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500">
+              <Check className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-emerald-500">🎉 Workout Complete!</p>
+              <p className="mt-1 text-sm text-muted-foreground">Great job! Today&apos;s workout has been completed.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
