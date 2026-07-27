@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, useEffect } from "react";
+import type { ElementType } from "react";
+import { motion, animate } from "framer-motion";
 import {
   Activity,
   Award,
@@ -36,9 +37,29 @@ const cardVariants = {
   }),
 };
 
-function formatValue(value: number | null, suffix = "") {
-  if (value === null || Number.isNaN(value)) return "Not set";
-  return `${value.toLocaleString()}${suffix}`;
+function AnimatedValue({ value, suffix = "", isFloat = false }: { value: number | null; suffix?: string; isFloat?: boolean }) {
+  const [display, setDisplay] = useState("0");
+  
+  useEffect(() => {
+    if (value === null || Number.isNaN(value)) {
+      return;
+    }
+    
+    const controls = animate(0, value, {
+      duration: 1.2,
+      ease: "easeOut",
+      onUpdate(latest) {
+        setDisplay(`${isFloat ? latest.toFixed(1) : Math.round(latest)}${suffix}`);
+      }
+    });
+    return () => controls.stop();
+  }, [value, suffix, isFloat]);
+
+  if (value === null || Number.isNaN(value)) {
+    return <span>Not set</span>;
+  }
+
+  return <span>{display}</span>;
 }
 
 function maxFromSeries(data: ChartPoint[], series: ChartSeries[]) {
@@ -50,11 +71,13 @@ function maxFromSeries(data: ChartPoint[], series: ChartSeries[]) {
   );
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function EmptyState({ title, description, icon: Icon = Sparkles }: { title: string; description: string; icon?: ElementType }) {
   return (
     <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/30 p-6 text-center">
-      <Sparkles className="h-5 w-5 text-muted-foreground" />
-      <p className="mt-3 text-sm font-semibold">{title}</p>
+      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted/50">
+        <Icon className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <p className="text-sm font-semibold">{title}</p>
       <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{description}</p>
     </div>
   );
@@ -92,6 +115,7 @@ function LineTrendChart({
   if (data.length === 0) {
     return (
       <EmptyState
+        icon={Activity}
         title="No body trend yet"
         description="Complete onboarding with height and weight to generate your estimated progress trend."
       />
@@ -140,7 +164,7 @@ function LineTrendChart({
               strokeLinejoin="round"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 0.7 }}
+              transition={{ duration: 1.2, ease: "easeInOut" }}
             />
           );
         })}
@@ -177,7 +201,7 @@ function BarChart({ data, dataKey, color }: { data: ChartPoint[]; dataKey: strin
                 style={{ background: color }}
                 initial={{ height: 0 }}
                 animate={{ height: `${Math.max(4, (value / max) * 100)}%` }}
-                transition={{ delay: index * 0.04, duration: 0.45 }}
+                transition={{ delay: index * 0.04, duration: 0.8, type: "spring", bounce: 0.3 }}
               />
             </div>
             <span className="text-[11px] text-muted-foreground">{item.label}</span>
@@ -194,6 +218,7 @@ function PieChart({ items }: { items: ProgressAnalytics["nutritionAnalytics"]["m
   if (total === 0) {
     return (
       <EmptyState
+        icon={Salad}
         title="No macro plan yet"
         description="Generate a nutrition plan to populate your macro distribution."
       />
@@ -225,7 +250,7 @@ function PieChart({ items }: { items: ProgressAnalytics["nutritionAnalytics"]["m
               strokeDashoffset={offset}
               initial={{ strokeDasharray: `0 100` }}
               animate={{ strokeDasharray: `${dash} ${100 - dash}` }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 1, type: "spring", bounce: 0.2 }}
             />
           );
         })}
@@ -267,7 +292,7 @@ function ProgressBar({
           className={cn("h-full rounded-full bg-gradient-to-r", color)}
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, value)}%` }}
-          transition={{ duration: 0.45 }}
+          transition={{ duration: 1, type: "spring", bounce: 0.3 }}
         />
       </div>
     </div>
@@ -281,14 +306,14 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
   const workoutData = analytics.workoutAnalytics[workoutRange];
 
   const kpis = [
-    { label: "Current Weight", value: formatValue(analytics.overview.currentWeight, " kg"), icon: Weight, color: "from-blue-500 to-cyan-500" },
-    { label: "Goal Weight", value: formatValue(analytics.overview.goalWeight, " kg"), icon: Target, color: "from-violet-500 to-purple-600" },
-    { label: "BMI", value: formatValue(analytics.overview.bmi), icon: Gauge, color: "from-emerald-500 to-teal-500" },
-    { label: "Body Fat", value: formatValue(analytics.overview.bodyFat, "%"), icon: Activity, color: "from-pink-500 to-rose-500" },
-    { label: "Weekly Workouts", value: analytics.overview.weeklyWorkoutsCompleted.toString(), icon: Dumbbell, color: "from-indigo-500 to-sky-500" },
-    { label: "Calories Burned", value: `${analytics.overview.caloriesBurnedThisWeek.toLocaleString()} kcal`, icon: Flame, color: "from-orange-500 to-red-500" },
-    { label: "Current Streak", value: `${analytics.overview.currentStreak} days`, icon: Zap, color: "from-yellow-500 to-orange-500" },
-    { label: "Total Days Active", value: analytics.overview.totalDaysActive.toString(), icon: CalendarCheck, color: "from-lime-500 to-emerald-500" },
+    { label: "Current Weight", value: <AnimatedValue value={analytics.overview.currentWeight} suffix=" kg" isFloat={analytics.overview.currentWeight !== null && analytics.overview.currentWeight % 1 !== 0} />, icon: Weight, color: "from-blue-500 to-cyan-500" },
+    { label: "Goal Weight", value: <AnimatedValue value={analytics.overview.goalWeight} suffix=" kg" isFloat={analytics.overview.goalWeight !== null && analytics.overview.goalWeight % 1 !== 0} />, icon: Target, color: "from-violet-500 to-purple-600" },
+    { label: "BMI", value: <AnimatedValue value={analytics.overview.bmi} isFloat={analytics.overview.bmi !== null && analytics.overview.bmi % 1 !== 0} />, icon: Gauge, color: "from-emerald-500 to-teal-500" },
+    { label: "Body Fat", value: <AnimatedValue value={analytics.overview.bodyFat} suffix="%" isFloat={analytics.overview.bodyFat !== null && analytics.overview.bodyFat % 1 !== 0} />, icon: Activity, color: "from-pink-500 to-rose-500" },
+    { label: "Weekly Workouts", value: <AnimatedValue value={analytics.overview.weeklyWorkoutsCompleted} />, icon: Dumbbell, color: "from-indigo-500 to-sky-500" },
+    { label: "Calories Burned", value: <AnimatedValue value={analytics.overview.caloriesBurnedThisWeek} suffix=" kcal" />, icon: Flame, color: "from-orange-500 to-red-500" },
+    { label: "Current Streak", value: <AnimatedValue value={analytics.overview.currentStreak} suffix=" days" />, icon: Zap, color: "from-yellow-500 to-orange-500" },
+    { label: "Total Workouts", value: <AnimatedValue value={analytics.overview.totalDaysActive} />, icon: CalendarCheck, color: "from-lime-500 to-emerald-500" },
   ];
 
   const unlockedCount = analytics.achievements.filter((item) => item.unlocked).length;
@@ -374,11 +399,11 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
 
             <div className="mb-6 grid gap-3 sm:grid-cols-5">
               {[
-                { label: "Workouts", value: analytics.workoutAnalytics.workoutsCompleted },
-                { label: "Exercises", value: analytics.workoutAnalytics.exercisesCompleted },
-                { label: "Minutes", value: analytics.workoutAnalytics.totalWorkoutTime },
-                { label: "Consistency", value: `${analytics.workoutAnalytics.weeklyConsistency}%` },
-                { label: "Calories", value: analytics.workoutAnalytics.caloriesBurned },
+                { label: "Workouts", value: <AnimatedValue value={analytics.workoutAnalytics.workoutsCompleted} /> },
+                { label: "Exercises", value: <AnimatedValue value={analytics.workoutAnalytics.exercisesCompleted} /> },
+                { label: "Minutes", value: <AnimatedValue value={analytics.workoutAnalytics.totalWorkoutTime} /> },
+                { label: "Consistency", value: <AnimatedValue value={analytics.workoutAnalytics.weeklyConsistency} suffix="%" /> },
+                { label: "Calories", value: <AnimatedValue value={analytics.workoutAnalytics.caloriesBurned} /> },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border border-border bg-background/40 p-3">
                   <p className="text-lg font-bold">{item.value}</p>
@@ -394,7 +419,7 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
                 <LineTrendChart data={workoutData} series={workoutLineSeries} />
               )
             ) : (
-              <EmptyState title="No workout completions yet" description="Start a workout and complete exercises to populate weekly and monthly analytics." />
+              <EmptyState icon={Dumbbell} title="No workout completions yet" description="Start a workout and complete exercises to populate weekly and monthly analytics." />
             )}
           </div>
 
@@ -425,7 +450,7 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
                 </div>
               </div>
             ) : (
-              <EmptyState title="No nutrition plan yet" description="Generate a nutrition plan to see calorie, macro, protein, and hydration analytics." />
+              <EmptyState icon={Salad} title="No nutrition plan yet" description="Generate a nutrition plan to see calorie, macro, protein, and hydration analytics." />
             )}
           </div>
         </div>
@@ -437,7 +462,7 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
                 <Sparkles className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">Weekly Summary</h2>
+                <h2 className="text-sm font-semibold">AI Weekly Summary</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{analytics.weeklySummary}</p>
               </div>
             </div>
@@ -521,7 +546,7 @@ export function ProgressDashboard({ analytics }: { analytics: ProgressAnalytics 
                   className="h-full rounded-full gradient-bg"
                   initial={{ width: 0 }}
                   animate={{ width: `${achievement.progress}%` }}
-                  transition={{ duration: 0.45 }}
+                  transition={{ duration: 1, type: "spring", bounce: 0.3 }}
                 />
               </div>
             </motion.article>
