@@ -9,11 +9,11 @@ type TrendPoint = {
   value: number;
 };
 
-function MiniLineChart({ data, color, suffix = "" }: { data: TrendPoint[]; color: string; suffix?: string }) {
+function MiniLineChart({ data, color, suffix = "", emptyMessage = "Add a few check-ins to reveal this trend." }: { data: TrendPoint[]; color: string; suffix?: string; emptyMessage?: string }) {
   if (data.length < 2) {
     return (
       <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border bg-background/30 p-4 text-center text-xs text-muted-foreground">
-        Add a few check-ins to reveal this trend.
+        {emptyMessage}
       </div>
     );
   }
@@ -116,7 +116,7 @@ export function RecoveryDashboard({ analysis }: { analysis: RecoveryAnalysis }) 
             <h2 className="text-sm font-semibold">Sleep Trend</h2>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </div>
-          <MiniLineChart data={analysis.analytics.sleepTrend} color="#38bdf8" suffix="h" />
+          <MiniLineChart data={analysis.analytics.sleepTrend} color="#38bdf8" suffix="h" emptyMessage="Log your sleep for a few days to see your sleep pattern." />
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -124,7 +124,7 @@ export function RecoveryDashboard({ analysis }: { analysis: RecoveryAnalysis }) 
             <h2 className="text-sm font-semibold">Recovery Trend</h2>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </div>
-          <MiniLineChart data={analysis.analytics.recoveryTrend} color="#a78bfa" suffix="%" />
+          <MiniLineChart data={analysis.analytics.recoveryTrend} color="#a78bfa" suffix="%" emptyMessage="Complete daily check-ins to track your recovery." />
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -132,7 +132,7 @@ export function RecoveryDashboard({ analysis }: { analysis: RecoveryAnalysis }) 
             <h2 className="text-sm font-semibold">Weight Trend</h2>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </div>
-          <MiniLineChart data={analysis.analytics.weightTrend} color="#34d399" suffix="kg" />
+          <MiniLineChart data={analysis.analytics.weightTrend} color="#34d399" suffix="kg" emptyMessage="Add your weight during check-ins to track changes over time." />
         </div>
       </section>
 
