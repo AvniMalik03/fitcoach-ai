@@ -204,12 +204,7 @@ export default function HomePage() {
                 Start for free
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border bg-background/80 backdrop-blur-sm px-7 py-3.5 text-sm font-semibold text-foreground hover:bg-accent transition-all duration-200"
-              >
-                View demo
-              </Link>
+
             </div>
 
             {/* Trust badges */}
