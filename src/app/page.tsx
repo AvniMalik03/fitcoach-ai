@@ -7,7 +7,6 @@ import {
   Salad,
   TrendingUp,
   Shield,
-  Star,
   ArrowRight,
   CheckCircle2,
   Activity,
@@ -85,82 +84,6 @@ const steps = [
     num: "04",
     title: "Evolve continuously",
     desc: "Your AI coach analyses progress weekly and automatically upgrades your plan.",
-  },
-];
-
-const testimonials = [
-  {
-    name: "Marcus Thompson",
-    handle: "@marcust_fit",
-    text: "Down 18kg in 5 months. The AI figured out I was overtrained and cut my volume — something I'd never have done on my own.",
-    rating: 5,
-    initials: "MT",
-  },
-  {
-    name: "Priya Patel",
-    handle: "@priyahealth",
-    text: "As a vegetarian, getting enough protein was always a struggle. FitCoach AI completely solved my meal planning.",
-    rating: 5,
-    initials: "PP",
-  },
-  {
-    name: "James Rivera",
-    handle: "@jrivera_gains",
-    text: "Went from a complete beginner to running my first 10k. The progressive overload in the plans is absolutely spot on.",
-    rating: 5,
-    initials: "JR",
-  },
-];
-
-const pricingPlans = [
-  {
-    name: "Free",
-    price: "£0",
-    period: "forever",
-    description: "Start your fitness journey",
-    features: [
-      "Basic workout library",
-      "Manual meal logging",
-      "7-day progress history",
-      "Community support",
-    ],
-    cta: "Get started",
-    href: "/signup",
-    featured: false,
-  },
-  {
-    name: "Pro",
-    price: "£9",
-    period: "/month",
-    description: "Full AI coaching experience",
-    features: [
-      "AI-personalised workout plans",
-      "Smart nutrition & macros",
-      "Unlimited progress analytics",
-      "Adaptive weekly coaching",
-      "Injury prevention tools",
-      "Priority support",
-    ],
-    cta: "Start free trial",
-    href: "/signup",
-    featured: true,
-  },
-  {
-    name: "Elite",
-    price: "£19",
-    period: "/month",
-    description: "For serious athletes",
-    features: [
-      "Everything in Pro",
-      "1-on-1 AI coach sessions",
-      "Advanced body composition",
-      "Periodisation planning",
-      "API integrations",
-      "Dedicated success manager",
-    ],
-    cta: "Contact sales",
-    href: "/signup",
-    featured: false,
   },
 ];
 
@@ -311,111 +234,6 @@ export default function HomePage() {
                   </div>
                   <h3 className="text-base font-semibold mb-2">{title}</h3>
                   <p className="text-sm text-muted-foreground">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonials */}
-        <section className="py-24 px-4">
-          <div className="mx-auto max-w-5xl">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
-                Testimonials
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-                Real results from{" "}
-                <span className="gradient-text">real people</span>
-              </h2>
-            </div>
-
-            <div className="grid gap-6 sm:grid-cols-3">
-              {testimonials.map(({ name, handle, text, rating, initials }) => (
-                <div key={name} className="rounded-2xl border border-border bg-card p-6 card-hover">
-                  <div className="flex gap-0.5 mb-4">
-                    {Array.from({ length: rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm leading-relaxed text-foreground/90 mb-6">&ldquo;{text}&rdquo;</p>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full gradient-bg text-xs font-bold text-white">
-                      {initials}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{name}</p>
-                      <p className="text-xs text-muted-foreground">{handle}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Pricing */}
-        <section id="pricing" className="py-24 px-4 relative">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent pointer-events-none" />
-          <div className="mx-auto max-w-5xl relative">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
-                Pricing
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-                Simple,{" "}
-                <span className="gradient-text">transparent pricing</span>
-              </h2>
-              <p className="mt-4 text-muted-foreground">
-                Start free. Upgrade when you&apos;re ready.
-              </p>
-            </div>
-
-            <div className="grid gap-6 sm:grid-cols-3">
-              {pricingPlans.map(({ name, price, period, description, features, cta, href, featured }) => (
-                <div
-                  key={name}
-                  className={`relative rounded-2xl border p-6 ${
-                    featured
-                      ? "border-primary/50 gradient-bg text-white shadow-2xl shadow-primary/25 scale-[1.03]"
-                      : "border-border bg-card"
-                  }`}
-                >
-                  {featured && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-xs font-semibold text-primary shadow">
-                      Most popular
-                    </div>
-                  )}
-                  <div className="mb-4">
-                    <p className={`text-sm font-semibold ${featured ? "text-white/80" : "text-muted-foreground"}`}>
-                      {name}
-                    </p>
-                    <div className="flex items-baseline gap-1 mt-1">
-                      <span className="text-3xl font-bold">{price}</span>
-                      <span className={`text-sm ${featured ? "text-white/70" : "text-muted-foreground"}`}>{period}</span>
-                    </div>
-                    <p className={`text-xs mt-1 ${featured ? "text-white/70" : "text-muted-foreground"}`}>{description}</p>
-                  </div>
-
-                  <ul className="space-y-2.5 mb-6">
-                    {features.map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-sm">
-                        <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${featured ? "text-white/80" : "text-emerald-500"}`} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href={href}
-                    className={`block w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-center transition-all ${
-                      featured
-                        ? "bg-white text-primary hover:bg-white/90 shadow-lg"
-                        : "border border-border hover:bg-accent"
-                    }`}
-                  >
-                    {cta}
-                  </Link>
                 </div>
               ))}
             </div>
