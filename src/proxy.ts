@@ -17,7 +17,10 @@ export default auth((req) => {
 
   // Redirect authenticated users away from auth pages
   if (isAuthPage && isLoggedIn) {
-    return NextResponse.redirect(new URL("/dashboard", nextUrl));
+    const hasCompletedOnboarding = req.auth?.user?.onboardingCompleted;
+    return NextResponse.redirect(
+      new URL(hasCompletedOnboarding ? "/dashboard" : "/onboarding", nextUrl)
+    );
   }
 
   // Handle onboarding state for logged-in users
