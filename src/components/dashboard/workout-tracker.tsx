@@ -150,7 +150,14 @@ export function WorkoutTracker({
 }) {
   const [progress, setProgress] = useState(initialProgress);
   const [activeDayName, setActiveDayName] = useState<string | null>(null);
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
+
+  const toggleExerciseExpanded = (key: string) => {
+    setExpandedExercises((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -462,7 +469,7 @@ export function WorkoutTracker({
             const completed = completedExerciseKeys.has(key);
             const muscle = getTargetMuscle(exercise.name, activeDay.focus);
             const calories = estimateCalories(exercise, activeDay.difficulty);
-            const expanded = expandedExercise === key;
+            const expanded = Boolean(expandedExercises[key]);
             const tips = getTips(exercise.name);
 
             return (
@@ -549,7 +556,7 @@ export function WorkoutTracker({
 
                   <button
                     type="button"
-                    onClick={() => setExpandedExercise(expanded ? null : key)}
+                    onClick={() => toggleExerciseExpanded(key)}
                     className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
                   >
                     <Info className="h-4 w-4" />
